@@ -7,13 +7,14 @@ use std::net::SocketAddr;
 
 #[tokio::main]
 async fn main( ) {
+    println!("Starting server app : {}", std::env::var("CARGO_PKG_NAME").unwrap());
     let app = Router::new()
         .route("/", get(hello));
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
     println!("Listening on {}", addr);
+    axum::serve(listener, app).await.unwrap();
 }
 
 
