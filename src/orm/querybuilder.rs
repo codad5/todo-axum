@@ -40,11 +40,17 @@ impl MySQlAction {
             MySQlAction::Select(fields) => format!("SELECT {} FROM {}", fields, table),
             MySQlAction::Insert((fields, value)) => format!("INSERT INTO {} ({}) VALUES ({})", table, fields.join(", "), vec_bind_type_to_string(value).join(", ")),
             MySQlAction::Update(fields) => {
-                let mut query = format!("UPDATE {} SET ", table);
+                let mut query = format!("UPDATE {} SET", table);
                 for (index, field) in fields.iter().enumerate() {
-                    query = format!("{} {} = {}", query, field.0, field.1);
+                    query = format!("{} {} = {}", query, field.0, match &field.1 {
+                        BindType::Int(value) => value.to_string(),
+                        BindType::String(value) => format!("'{}'", value),
+                        BindType::Bool(value) => value.to_string(),
+                        BindType::Float(value) => value.to_string(),
+                        BindType::PreparedStatement => "?".to_string(),
+                    });
                     if index < fields.len() - 1 {
-                        query = format!("{}, ", query);
+                        query = format!("{},", query);
                     }
                 }
                 query
@@ -103,8 +109,8 @@ pub enum InCondition {
 
 
 pub enum MySQLCondition {
-    Equal(String), // string is the value
-    NotEqual(String),
+    Equal(BindType),
+    NotEqual(BindType),
     GreaterThan(i32),
     LessThan(i32),
     GreaterThanEqual(i32),
@@ -119,6 +125,33 @@ pub enum MySQLCondition {
     IsNotNull,
 }
 
+impl MySQLCondition {
+    pub fn to_string(&self, prepared_stmt: bool) -> String {
+        match self {
+            MySQLCondition::Equal(value) => format!("= {}", if prepared_stmt {BindType::PreparedStatement } else { value.to_owned() }),
+            MySQLCondition::NotEqual(value) => format!("!= {}", if prepared_stmt { BindType::PreparedStatement } else { value.to_owned() }),
+            MySQLCondition::GreaterThan(value) => format!("> {}", if prepared_stmt { BindType::PreparedStatement} else { BindType::Int(value.to_owned()) }),
+            MySQLCondition::LessThan(value) => format!("< {}", if prepared_stmt { BindType::PreparedStatement} else { BindType::Int(value.to_owned()) }),
+            MySQLCondition::GreaterThanEqual(value) => format!(">= {}", if prepared_stmt { BindType::PreparedStatement} else { BindType::Int(value.to_owned()) }),
+            MySQLCondition::LessThanEqual(value) => format!("<= {}", if prepared_stmt { BindType::PreparedStatement} else { BindType::Int(value.to_owned()) }),
+            MySQLCondition::Like(value) => format!("LIKE {}", value.to_string()),
+            MySQLCondition::NotLike(value) => format!("NOT LIKE {}", value.to_string()),
+            MySQLCondition::In(value) => match value {
+                InCondition::Vector(values) => format!("IN ({})", values.join(", ")),
+                InCondition::Query(query) => format!("IN ({})", query.build()),
+            },
+            MySQLCondition::NotIn(value) => match value {
+                InCondition::Vector(values) => format!("NOT IN ({})", values.join(", ")),
+                InCondition::Query(query) => format!("NOT IN ({})", query.build()),
+            },
+            MySQLCondition::Between(value1, value2) => format!("BETWEEN {} AND {}", if prepared_stmt { BindType::PreparedStatement } else { BindType::Int(value1.to_owned()) }, if prepared_stmt { BindType::PreparedStatement } else { BindType::Int(value2.to_owned()) }),
+            MySQLCondition::NotBetween(value1, value2) => format!("NOT BETWEEN {} AND {}", if prepared_stmt { BindType::PreparedStatement } else { BindType::Int(value1.to_owned()) }, if prepared_stmt { BindType::PreparedStatement } else { BindType::Int(value2.to_owned()) }),
+            MySQLCondition::IsNull => "IS NULL".to_string(),
+            MySQLCondition::IsNotNull => "IS NOT NULL".to_string(),
+        }
+    }
+}
+
 pub enum MySQLOrder {
     Asc,
     Desc,
@@ -130,7 +163,7 @@ pub struct QueryBuilder {
     // join of vec of table to join and the type of join and field condition to join
     joins : Vec<(String, MySQLJoin, String)>,
     // where condition
-    where_condition : Vec<(BindType, MySQLCondition, BindType)>, // field, condition, value
+    where_condition : Vec<(String, MySQLCondition)>, // field, condition, value
     // group by
     group_by : Vec<String>,
     // having
@@ -184,7 +217,11 @@ impl QueryBuilder {
     }
 
     pub fn update(&mut self, fields: Vec<(String, BindType)>) -> &mut Self {
-        self.action = MySQlAction::Update(fields);
+        let mut update_fields = Vec::new();
+        for field in fields {
+            update_fields.push((field.0, if self.prepared_stmt { BindType::PreparedStatement } else { field.1 }));
+        }
+        self.action = MySQlAction::Update(update_fields);
         self
     }
 
@@ -193,8 +230,8 @@ impl QueryBuilder {
         self
     }
 
-    pub fn where_condition(&mut self, field: BindType, condition: MySQLCondition, value: BindType) -> &mut Self {
-        self.where_condition.push((field, condition, if self.prepared_stmt { BindType::String("?".to_string()) } else { value }));
+    pub fn where_condition(&mut self, field: &str, condition: MySQLCondition) -> &mut Self {
+        self.where_condition.push((field.to_string(), condition));
         self
     }
 
@@ -231,7 +268,7 @@ impl QueryBuilder {
             }
         }
         if self.where_condition.len() > 0 {
-            query = format!("{} WHERE ", query);
+            query = format!("{} WHERE", query);
             for (index, condition) in self.where_condition.iter().enumerate() {
                 query = format!("{} {} {} {}", query, condition.0, self.condition_builder(&condition.1), if index < self.where_condition.len() - 1 { "AND" } else { "" });
             }
@@ -241,7 +278,7 @@ impl QueryBuilder {
         }
 
         if self.having.len() > 0 {
-            query = format!("{} HAVING ", query);
+            query = format!("{} HAVING", query);
             for (index, condition) in self.having.iter().enumerate() {
                 query = format!("{} {} {} {}", query, condition.0, self.condition_builder(&condition.1), if index < self.having.len() - 1 { "AND" } else { "" });
             }
@@ -264,7 +301,7 @@ impl QueryBuilder {
             query = format!("{} LIMIT {}", query, limit);
         }
 
-        query
+        query.trim().to_string()
 
 
     }
@@ -281,27 +318,6 @@ impl QueryBuilder {
     }
 
     fn condition_builder(&self, condition: &MySQLCondition) -> String {
-        match condition {
-            MySQLCondition::Equal(value) => format!("= {}", value),
-            MySQLCondition::NotEqual(value) => format!("!= {}", value),
-            MySQLCondition::GreaterThan(value) => format!("> {}", value),
-            MySQLCondition::LessThan(value) => format!("< {}", value),
-            MySQLCondition::GreaterThanEqual(value) => format!(">= {}", value),
-            MySQLCondition::LessThanEqual(value) => format!("<= {}", value),
-            MySQLCondition::Like(value) => format!("LIKE {}", value.to_string()),
-            MySQLCondition::NotLike(value) => format!("NOT LIKE {}", value.to_string()),
-            MySQLCondition::In(value) => match value {
-                InCondition::Vector(values) => format!("IN ({})", values.join(", ")),
-                InCondition::Query(query) => format!("IN ({})", query.build()),
-            },
-            MySQLCondition::NotIn(value) => match value {
-                InCondition::Vector(values) => format!("NOT IN ({})", values.join(", ")),
-                InCondition::Query(query) => format!("NOT IN ({})", query.build()),
-            },
-            MySQLCondition::Between(value1, value2) => format!("BETWEEN {} AND {}", value1, value2),
-            MySQLCondition::NotBetween(value1, value2) => format!("NOT BETWEEN {} AND {}", value1, value2),
-            MySQLCondition::IsNull => "IS NULL".to_string(),
-            MySQLCondition::IsNotNull => "IS NOT NULL".to_string(),
-        }
+        condition.to_string(self.prepared_stmt)
     }
 }
