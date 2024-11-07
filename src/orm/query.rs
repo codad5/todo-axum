@@ -1,4 +1,6 @@
-#[derive(Debug, Clone)]
+use super::querybuilder::QueryBuilder;
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum BindType {
     Int(i32),
     String(String),
@@ -23,20 +25,27 @@ impl std::fmt::Display for BindType {
 pub struct Query {
     pub query : String, 
     pub bind_values : Vec<BindType>,
+    query_builder: QueryBuilder,
 
 }
 
 
 impl Query {
-    pub fn new(query: String) -> Self {
+    pub fn new(query: QueryBuilder) -> Self {
         Self {
-            query,
+            query: query.build(),
             bind_values: Vec::new(),
+            query_builder: query,
         }
     }
 
     pub fn bind(&mut self, value: BindType) {
         self.bind_values.push(value);
+    }
+
+    pub fn prepare(&mut self) -> sqlx::query::Query<'_, sqlx::MySql, sqlx::mysql::MySqlArguments> {
+        self.query = self.query_builder.build();
+        return self.ready_query();
     }
 
     pub fn ready_query(&self)  -> sqlx::query::Query<'_, sqlx::MySql, sqlx::mysql::MySqlArguments> {

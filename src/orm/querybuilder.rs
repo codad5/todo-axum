@@ -25,11 +25,13 @@ pub fn vec_bind_type_to_string(bind_values: &Vec<BindType>) -> Vec<String> {
     values
 }
 
+#[derive(PartialEq)]
 pub enum MySQlAction {
     Select(String),
     Insert((Vec<String>, Vec<BindType>)),
     Update(Vec<(String, BindType)>),
     Delete,
+    Custom(String),
     None,
 
 }
@@ -56,6 +58,7 @@ impl MySQlAction {
                 query
             },
             MySQlAction::Delete => format!("DELETE FROM {}", table),
+            MySQlAction::Custom(query) => query.to_string(),
             _ => "".to_string(),
         }
     }
@@ -257,6 +260,12 @@ impl QueryBuilder {
 
     pub fn build(&self) -> String {
         let mut query = self.action.to_string(&self.table);
+        if self.action == MySQlAction::None {
+            return "".to_string();
+        }
+        if let MySQlAction::Custom(query) = &self.action {
+            return query.to_string();
+        }
         if self.joins.len() > 0 {
             for join in &self.joins {
                 query = format!("{} {} JOIN {} ON {}", query, match join.1 {
@@ -319,5 +328,20 @@ impl QueryBuilder {
 
     fn condition_builder(&self, condition: &MySQLCondition) -> String {
         condition.to_string(self.prepared_stmt)
+    }
+
+    // for custom query
+    pub fn custom_query(query: &str) -> Self {
+        Self {
+            table : "".to_string(),
+            action : MySQlAction::Custom(query.to_string()),
+            joins : Vec::new(),
+            where_condition : Vec::new(),
+            group_by : Vec::new(),
+            having : Vec::new(),
+            order_by : Vec::new(),
+            limit : None,
+            prepared_stmt : true,
+        }
     }
 }
