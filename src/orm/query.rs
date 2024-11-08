@@ -1,3 +1,5 @@
+use sqlx::MySqlPool;
+
 use super::querybuilder::QueryBuilder;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -68,6 +70,22 @@ impl Query {
             }
         }
         return stmt;
+    }
+
+    
+    pub async fn fetch_all(&self, pool : &MySqlPool) -> sqlx::Result<Vec<sqlx::mysql::MySqlRow>> {
+        let stmt = self.ready_query();
+        return stmt.fetch_all(pool).await;
+    }
+
+    pub async fn fetch_one(&self, pool : &MySqlPool) -> sqlx::Result<sqlx::mysql::MySqlRow> {
+        let stmt = self.ready_query();
+        return stmt.fetch_one(pool).await;
+    }
+
+    pub async fn execute(&self, pool : &MySqlPool) -> sqlx::Result<sqlx::mysql::MySqlQueryResult> {
+        let stmt = self.ready_query();
+        return stmt.execute(pool).await;
     }
     
 }
