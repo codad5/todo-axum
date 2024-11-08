@@ -8,6 +8,9 @@ pub fn vec_bind_type_to_string(bind_values: &Vec<BindType>) -> Vec<String> {
             BindType::Int(value) => {
                 values.push(value.to_string());
             }
+            BindType::UInt(value) => {
+                values.push(value.to_string());
+            }
             BindType::String(value) => {
                 values.push(format!("'{}'", value));
             }
@@ -20,6 +23,7 @@ pub fn vec_bind_type_to_string(bind_values: &Vec<BindType>) -> Vec<String> {
             BindType::PreparedStatement => {
                 values.push("?".to_string());
             }
+
         }
     }
     values
@@ -46,6 +50,7 @@ impl MySQlAction {
                 for (index, field) in fields.iter().enumerate() {
                     query = format!("{} {} = {}", query, field.0, match &field.1 {
                         BindType::Int(value) => value.to_string(),
+                        BindType::UInt(value) => value.to_string(),
                         BindType::String(value) => format!("'{}'", value),
                         BindType::Bool(value) => value.to_string(),
                         BindType::Float(value) => value.to_string(),

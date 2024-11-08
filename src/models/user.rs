@@ -1,4 +1,5 @@
-use crate::orm::{query::BindType, Orm, querybuilder::QueryBuilder};
+use crate::orm::{query::BindType, querybuilder::{MySQLCondition, QueryBuilder}, Orm};
+use sqlx::Row;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct User {
@@ -25,6 +26,24 @@ impl User {
             Ok(r) => Ok(Self {
                 id: r.last_insert_id() as u32,
                 username: self.username.clone(),
+            }),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub async fn get_user_by_id(id: u32) -> Result<Self, sqlx::Error> {
+        let orm = Orm::new("users").await;
+        let mut query = orm.query_builder();
+        query.select(vec!["id".to_string(), "username".to_string()]);
+        query.where_condition("id", MySQLCondition::Equal(BindType::UInt(id)));
+        println!("{}", query.build());
+        let mut query = orm.query(query);
+        query.bind(BindType::UInt(id));
+        let result = orm.fetch_one(query).await;
+        match result {
+            Ok(row) => Ok(Self {
+                id: row.get("id"),
+                username: row.get("username"),
             }),
             Err(e) => Err(e),
         }

@@ -46,8 +46,12 @@ async fn hello() -> Json<ApiResponse<String>> {
     Json(ApiResponse::new(ResponseStatus::Success, "Hello", Some("World".to_string())))
 }
 
-async fn  get_user_by_id(Path(user_id) : Path<u32>) -> Json<ApiResponse<String>> {
-    Json(ApiResponse::new(ResponseStatus::Success, "User found", Some(format!("User with id: {}", user_id))))
+async fn  get_user_by_id(Path(user_id) : Path<u32>) -> Json<ApiResponse<User>> {
+    let user = User::get_user_by_id(user_id).await;
+    match user {
+        Ok(user) => Json(ApiResponse::new(ResponseStatus::Success, "User found", Some(user))),
+        Err(e) => Json(ApiResponse::new(ResponseStatus::InternalServerError, &e.to_string(), None)),
+    }
 }
 
 async fn create_user(JsonExtract(user) : Json<User>) -> Json<ApiResponse<User>> {

@@ -5,6 +5,7 @@ use super::querybuilder::QueryBuilder;
 #[derive(Debug, Clone, PartialEq)]
 pub enum BindType {
     Int(i32),
+    UInt(u32),
     String(String),
     Bool(bool),
     Float(f32),
@@ -16,10 +17,12 @@ impl std::fmt::Display for BindType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             BindType::Int(value) => write!(f, "{}", value),
+            BindType::UInt(value) => write!(f, "{}", value),
             BindType::String(value) => write!(f, "{}", value),
             BindType::Bool(value) => write!(f, "{}", value),
             BindType::Float(value) => write!(f, "{}", value),
             BindType::PreparedStatement => write!(f, "?"),
+            
         }
     }
 }
