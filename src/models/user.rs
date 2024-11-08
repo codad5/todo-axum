@@ -1,5 +1,6 @@
 use crate::orm::{query::BindType, Orm, querybuilder::QueryBuilder};
 
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct User {
     id: u32,
     username: String,

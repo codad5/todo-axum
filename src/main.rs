@@ -1,13 +1,16 @@
 
+use apiresponse::{ApiResponse, ResponseStatus};
 use axum::{
     extract::{Json as JsonExtract, Path, Query}, routing::{get, post}, Json, Router
 };
+use models::user::User;
 
 use std::{net::SocketAddr, str};
 
 mod models;
 mod database;
 mod orm;
+mod apiresponse;
 #[cfg(test)]
 mod tests;
 
@@ -37,26 +40,20 @@ struct Message {
 }
 
 
-#[derive(serde::Deserialize)]
-struct User {
-    id: u32,
-    name: String,
+
+#[axum::debug_handler]
+async fn hello() -> Json<ApiResponse<String>> {
+    Json(ApiResponse::new(ResponseStatus::Success, "Hello", Some("World".to_string())))
 }
 
-async fn hello() -> Json<Message> {
-    Json(Message {
-        message: "Hello, World!".to_string(),
-    })
+async fn  get_user_by_id(Path(user_id) : Path<u32>) -> Json<ApiResponse<String>> {
+    Json(ApiResponse::new(ResponseStatus::Success, "User found", Some(format!("User with id: {}", user_id))))
 }
 
-async fn  get_user_by_id(Path(user_id) : Path<u32>) -> Json<Message> {
-    Json(Message {
-        message: format!("Hello, User with id: {}", user_id),
-    })
-}
-
-async fn create_user(JsonExtract(user) : Json<User>) -> Json<Message> {
-    Json(Message {
-        message: format!("Hello, User with id: {}", user.id),
-    })
+async fn create_user(JsonExtract(user) : Json<User>) -> Json<ApiResponse<User>> {
+    match user.create_user().await {
+        Ok(user) => Json(ApiResponse::new(ResponseStatus::Created, "User created successfully", Some(user))),
+        Err(e) => Json(ApiResponse::new(ResponseStatus::InternalServerError, &e.to_string(), None)),
+    }
+    
 }
