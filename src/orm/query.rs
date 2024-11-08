@@ -48,6 +48,10 @@ impl Query {
         self.bind_values.push(value);
     }
 
+    pub fn get_bind_values(&self) -> Vec<BindType> {
+        return self.bind_values.clone();
+    }
+
     pub fn prepare(&mut self) -> sqlx::query::Query<'_, sqlx::MySql, sqlx::mysql::MySqlArguments> {
         self.query = self.query_builder.build();
         return self.ready_query();
@@ -58,6 +62,9 @@ impl Query {
         for bind_value in &self.bind_values {
             match bind_value {
                 BindType::Int(value) => {
+                    stmt = stmt.bind(value);
+                }
+                BindType::UInt(value) => {
                     stmt = stmt.bind(value);
                 }
                 BindType::String(value) => {

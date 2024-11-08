@@ -3,12 +3,12 @@ use sqlx::Row;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct User {
-    id: u32,
+    id: i32,
     username: String,
 }
 
 impl User {
-    pub fn new(id: u32, username: String) -> Self {
+    pub fn new(id: i32, username: String) -> Self {
         Self { id, username }
     }
 
@@ -24,7 +24,7 @@ impl User {
         let result = orm.execute(query).await;
         match result {
             Ok(r) => Ok(Self {
-                id: r.last_insert_id() as u32,
+                id: r.last_insert_id() as i32,
                 username: self.username.clone(),
             }),
             Err(e) => Err(e),
@@ -39,6 +39,7 @@ impl User {
         println!("{}", query.build());
         let mut query = orm.query(query);
         query.bind(BindType::UInt(id));
+        println!("{:?}", query.get_bind_values());
         let result = orm.fetch_one(query).await;
         match result {
             Ok(row) => Ok(Self {
@@ -49,24 +50,25 @@ impl User {
         }
     }
 
-    // pub async fn update_user(&self) -> Result<Self, sqlx::Error> {
-    //     // let orm = Orm::new("users").await;
-    //     // let mut query = orm.query_builder();
-    //     // query.update(
-    //     //     vec!["username".to_string()],
-    //     //     vec![BindType::String(self.username.clone())],
-    //     // );
-    //     // query.where_clause("id".to_string(), BindType::Int(self.id));
-    //     // let mut query = orm.query(query);
-    //     // query.bind(BindType::String(self.username.clone()));
-    //     // query.bind(BindType::Int(self.id));
-    //     // let result = orm.execute(query).await;
-    //     // match result {
-    //     //     Ok(_) => Ok(Self {
-    //     //         id: self.id,
-    //     //         username: self.username.clone(),
-    //     //     }),
-    //     //     Err(e) => Err(e),
-    //     // }
-    // }
+    pub async fn get_all_users() -> Result<Vec<Self>, sqlx::Error> {
+        let orm = Orm::new("users").await;
+        let mut query = orm.query_builder();
+        query.select(vec![]);
+        println!("{}", query.build());
+        let query = orm.query(query);
+        let result = orm.fetch_all(query).await;
+        match result {
+            Ok(rows) => {
+                let mut users = Vec::new();
+                for row in rows {
+                    users.push(Self {
+                        id: row.get("id"),
+                        username: row.get("username"),
+                    });
+                }
+                Ok(users)
+            }
+            Err(e) => Err(e),
+        }
+    }
 }

@@ -24,6 +24,8 @@ async fn main( ) {
         .route("/", get(hello))
         .route("/user/:user_id", get(get_user_by_id))
         .route("/user/create", post(create_user))
+        // get all users
+        .route("/users", get(get_all_users))
         .with_state(db);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
@@ -60,4 +62,12 @@ async fn create_user(JsonExtract(user) : Json<User>) -> Json<ApiResponse<User>> 
         Err(e) => Json(ApiResponse::new(ResponseStatus::InternalServerError, &e.to_string(), None)),
     }
     
+}
+
+async fn get_all_users() -> Json<ApiResponse<Vec<User>>> {
+    let users = User::get_all_users().await;
+    match users {
+        Ok(users) => Json(ApiResponse::new(ResponseStatus::Success, "Users found", Some(users))),
+        Err(e) => Json(ApiResponse::new(ResponseStatus::InternalServerError, &e.to_string(), None)),
+    }
 }
